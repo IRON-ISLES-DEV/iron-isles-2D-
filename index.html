@@ -1,0 +1,1272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>IRON ISLES v0.9</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#101820;color:#edf4f5;font:14px Arial}
+header{padding:12px 18px;background:#091219;display:flex;justify-content:space-between;align-items:center}
+h1{margin:0;letter-spacing:3px}
+main{display:grid;grid-template-columns:minmax(0,1fr) 290px;gap:12px;padding:12px;max-width:1500px;margin:auto}
+#wrap{position:relative;background:#163c49;border:1px solid #405b68;border-radius:10px;overflow:hidden;min-width:0}
+canvas{width:100%;display:block;touch-action:none}
+aside{display:flex;flex-direction:column;gap:9px}
+.panel,.menu{background:#182630;border:1px solid #344955;border-radius:10px;padding:11px}
+h3{margin:0 0 9px}
+button,select,input{background:#29495a;color:white;border:1px solid #527184;padding:8px;border-radius:6px;cursor:pointer;max-width:100%}
+button:hover{background:#37647a}
+button:disabled{opacity:.45}
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.stat{display:flex;justify-content:space-between;padding:4px;border-bottom:1px solid #344955;color:#b8cbd0}
+.stat b{color:white}
+small{color:#a8bbc1}
+#overlay{position:absolute;inset:0;background:#07121dee;display:flex;align-items:center;justify-content:center;text-align:center;z-index:10;padding:12px;overflow:auto}
+#overlay.hidden{display:none}
+.menu{max-width:650px;width:100%;padding:20px}
+.mapChoices{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin:12px 0}
+.mapChoice{min-height:65px}
+.chosen{border:2px solid #75d7a1;background:#285344}
+#settingsPanel{display:none;text-align:left;margin-top:12px}
+#settingsPanel label{display:flex;justify-content:space-between;align-items:center;margin:7px 0;gap:8px}
+#settingsPanel select,#settingsPanel input{width:135px}
+#fightButton{display:none;position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:4;background:#a83d35;font-weight:bold;padding:11px 18px}
+#toast{position:absolute;top:55px;left:50%;transform:translateX(-50%);background:#091219;padding:9px 15px;border-radius:20px;opacity:0;pointer-events:none;z-index:8;white-space:nowrap}
+#zoomControls{position:absolute;right:10px;top:10px;z-index:4;display:flex;gap:5px}
+#mobileControls{display:none;position:absolute;bottom:12px;left:10px;right:10px;z-index:5;pointer-events:none;justify-content:space-between;align-items:end}
+#stick{width:110px;height:110px;border-radius:50%;background:#152b3a99;border:2px solid #b9d5df88;position:relative;pointer-events:auto;touch-action:none}
+#stickKnob{width:40px;height:40px;border-radius:50%;background:#b9d5dfbb;position:absolute;left:33px;top:33px}
+#mobileButtons{display:grid;grid-template-columns:repeat(2,65px);gap:6px;pointer-events:auto}
+#mobileButtons button{height:45px}
+#activityItems{max-height:145px;overflow:auto;font-size:11px;line-height:1.55;color:#c8d9df}
+.saveRow{display:flex;gap:6px;justify-content:center;flex-wrap:wrap}
+@media(max-width:850px){main{grid-template-columns:1fr}aside{display:grid;grid-template-columns:1fr 1fr}}
+@media(max-width:520px){header{padding:9px}h1{font-size:20px}main{padding:5px;gap:6px}aside{display:flex}.mapChoices{grid-template-columns:1fr}#mobileControls{display:flex}}
+</style>
+</head>
+<body>
+<header>
+<div><h1>IRON ISLES</h1><small>ISLAND CONQUEST • VERSION 0.9</small></div>
+<small>Development Build</small>
+</header>
+
+<main>
+<section id="wrap">
+<canvas id="game" width="960" height="600"></canvas>
+<div id="zoomControls">
+<button onclick="changeZoom(.15)">+</button>
+<button onclick="changeZoom(-.15)">−</button>
+<button onclick="resetZoom()">↺</button>
+</div>
+<button id="fightButton" onclick="startFighting()">START FIGHTING</button>
+<div id="toast"></div>
+
+<div id="mobileControls">
+<div id="stick"><div id="stickKnob"></div></div>
+<div id="mobileButtons">
+<button onclick="attack()">SHOOT</button>
+<button onclick="switchSoldier()">SWITCH</button>
+<button onclick="build('House',30)">HOUSE</button>
+<button onclick="callBot()">CALL BOT</button>
+<button onclick="boardShip()">SHIP</button>
+<button onclick="buildBridge()">BRIDGE</button>
+</div>
+</div>
+
+<div id="overlay">
+<div class="menu" id="startMenu">
+<h2>IRON ISLES</h2>
+<p>Choose your battlefield and settings.</p>
+<div class="mapChoices">
+<button class="mapChoice chosen" data-map="kingdom" onclick="chooseMap('kingdom')">Island Kingdom<br><small>Six islands</small></button>
+<button class="mapChoice" data-map="archipelago" onclick="chooseMap('archipelago')">Archipelago<br><small>Many small islands</small></button>
+<button class="mapChoice" data-map="empires" onclick="chooseMap('empires')">Twin Empires<br><small>Large territories</small></button>
+</div>
+<p id="mapDescription">A balanced map with six islands.</p>
+<p>Difficulty: <select id="difficulty"><option value="easy">Easy</option><option value="normal" selected>Normal</option><option value="hard">Hard</option></select></p>
+<p><button id="readyButton" onclick="toggleReady()">READY UP</button></p>
+<button id="startButton" disabled onclick="startMatch()">START MATCH</button>
+<div class="saveRow" style="margin-top:10px"><button onclick="saveGame()">SAVE GAME</button><button onclick="loadGame()">LOAD GAME</button></div>
+<p><button onclick="showSettings()">SETTINGS / CONTROLS</button></p>
+<div id="settingsPanel">
+<h3>CONTROL SETTINGS</h3>
+<p><small>Click a control, then press a key.</small></p>
+<div id="keySettings"></div>
+<p>Mouse sensitivity: <input id="sensitivity" type="number" min="1" max="10" value="5"></p>
+<button onclick="resetControls()">RESET CONTROLS</button>
+<button onclick="saveSettings()">SAVE SETTINGS</button>
+</div>
+</div>
+
+<div class="menu" id="endMenu" style="display:none">
+<h2 id="result">GAME OVER</h2>
+<p id="resultText"></p>
+<p id="spectateStatus"></p>
+<button id="spectateButton" onclick="continueSpectating()">CONTINUE SPECTATING</button>
+<button onclick="returnToMenu()">FIND ANOTHER MATCH</button>
+</div>
+</div>
+</section>
+
+<aside id="gameUI" style="display:none">
+<div class="panel">
+<h3>BLUE TEAM</h3>
+<div class="stat"><span>Islands</span><b id="owned">1</b></div>
+<div class="stat"><span>Points</span><b id="points">100</b></div>
+<div class="stat"><span>Supplies</span><b id="supplies">120</b></div>
+<div class="stat"><span>Army</span><b id="army">3</b></div>
+<div class="stat"><span>Health</span><b id="health">200</b></div>
+<div class="stat"><span>Weapon / Ammo</span><b id="weapon">AR</b></div>
+<div class="stat"><span>Phase</span><b id="phase">PREPARATION</b></div>
+</div>
+
+<div class="panel">
+<h3>WEAPONS</h3>
+<div class="actions">
+<button onclick="selectGun('AR')">Rifle · 1</button>
+<button onclick="selectGun('Sniper')">Sniper · 2</button>
+<button onclick="selectGun('Shotgun')">Shotgun · 3</button>
+<button onclick="selectGun('RPG')">RPG · 4</button>
+</div>
+<small id="ammoInfo"></small>
+<p><button onclick="manufactureAmmo()">MANUFACTURE AMMO</button></p>
+</div>
+
+<div class="panel">
+<h3>BUILDINGS</h3>
+<div class="actions">
+<button onclick="build('House',30)">House · 30</button>
+<button onclick="build('Wall',20)">Wall · 20</button>
+<button onclick="build('Tower',40)">Tower · 40</button>
+<button onclick="build('Barracks',50)">Barracks · 50</button>
+</div>
+<p><button onclick="upgradeHouse()">Upgrade house · 35</button></p>
+</div>
+
+<div class="panel">
+<h3>TRANSPORT</h3>
+<div class="actions">
+<button onclick="buildShip()">Build ship · 60</button>
+<button onclick="boardShip()">Board / Leave</button>
+<button onclick="buildBridge()">Build bridge · 80</button>
+</div>
+</div>
+
+<div class="panel">
+<h3>COMMANDS</h3>
+<div class="actions">
+<button onclick="switchSoldier()">Switch soldier</button>
+<button onclick="callBot()">Call bot</button>
+<button onclick="upgrade()">Upgrade soldier · 35</button>
+<button onclick="requestAlliance()">Request alliance</button>
+<button onclick="respondAlliance()">Alliance requests</button>
+<button onclick="endAlliance()">End alliance</button>
+<button onclick="offerTrade()">Custom trade</button>
+<button onclick="restartMatch()">Restart match</button>
+<button onclick="saveGame()">Save game</button>
+<button onclick="loadGame()">Load game</button>
+<button onclick="showSettings()">Settings</button>
+</div>
+</div>
+
+<div class="panel"><h3>WITCH MOTHERS</h3><div id="witchInfo">Preparing...</div></div>
+<div class="panel"><h3>GAME LOG</h3><div id="activityItems">Waiting for match...</div></div>
+</aside>
+</main>
+
+<script>
+"use strict";
+
+const canvas=document.getElementById("game");
+const ctx=canvas.getContext("2d");
+const W=960,H=600,SAVE_KEY="ironIslesSaveV09";
+
+const colors={
+ Blue:"#348bd0",Red:"#dc765e",
+ Yellow:"#e8c45c",Purple:"#9b83cf",
+ Neutral:"#aab9bd"
+};
+
+const teamNames=["Blue","Red","Yellow","Purple"];
+
+let mapChoice="kingdom",ready=false,running=false;
+let fighting=false,gameOver=false,spectating=false;
+let islands=[],soldiers=[],teams=[],bullets=[],ships=[],bridges=[];
+let player=null,active=0,points=100,supplies=120;
+let selected=0,weapon="AR",allies=[],pendingAlliance={};
+let incomingRequests=[],keys={},mouse={x:600,y:300};
+let lastShot=0,lastTime=0,aimDirection={x:1,y:0};
+let zoom=1,activity=[],mobileMove={x:0,y:0};
+let sensitivity=5,waitingForKey=null,controllerButtons={};
+let difficulty="normal",nextBotId=1,playerDead=false,inShip=false;
+
+const controls={
+ moveUp:"w",moveDown:"s",moveLeft:"a",moveRight:"d",
+ shoot:" ",switch:"q",ship:"e",bridge:"b",
+ house:"k",callBot:"o",rifle:"1",sniper:"2",
+ shotgun:"3",rpg:"4"
+};
+
+const guns={
+ AR:{damage:18,delay:250,speed:8,shots:1,mag:30,cost:12},
+ Sniper:{damage:70,delay:1000,speed:12,shots:1,mag:8,cost:8},
+ Shotgun:{damage:12,delay:650,speed:7,shots:5,mag:10,cost:10},
+ RPG:{damage:100,delay:1500,speed:5,shots:1,mag:3,cost:5,explosive:true}
+};
+
+const difficultySettings={
+ easy:{enemySpeed:.42,enemyDamage:5,recruitTime:23000,enemyHealth:150},
+ normal:{enemySpeed:.55,enemyDamage:9,recruitTime:18000,enemyHealth:200},
+ hard:{enemySpeed:.72,enemyDamage:13,recruitTime:14000,enemyHealth:240}
+};
+
+function log(m){
+ activity.unshift(m);
+ activity=activity.slice(0,40);
+ document.getElementById("activityItems").innerHTML=
+ activity.map(x=>"• "+esc(x)).join("<br>");
+}
+
+function esc(s){
+ return String(s).replace(/[&<>"']/g,c=>({
+ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+ }[c]));
+}
+
+function toast(m){
+ let t=document.getElementById("toast");
+ t.textContent=m;
+ t.style.opacity=1;
+ clearTimeout(toast.timer);
+ toast.timer=setTimeout(()=>t.style.opacity=0,1700);
+}
+
+function chooseMap(n){
+ mapChoice=n;
+ document.querySelectorAll(".mapChoice").forEach(b=>
+ b.classList.toggle("chosen",b.dataset.map===n));
+ document.getElementById("mapDescription").textContent={
+ kingdom:"A balanced map with six islands.",
+ archipelago:"A scattered map with many small islands.",
+ empires:"Two large territories and smaller islands."
+ }[n];
+}
+
+function toggleReady(){
+ ready=!ready;
+ document.getElementById("readyButton").textContent=ready?"READY!":"READY UP";
+ document.getElementById("startButton").disabled=!ready;
+}
+
+function showSettings(){
+ let p=document.getElementById("settingsPanel");
+ p.style.display=p.style.display==="block"?"none":"block";
+ renderKeySettings();
+}
+
+function renderKeySettings(){
+ let labels={
+ moveUp:"Move up",moveDown:"Move down",
+ moveLeft:"Move left",moveRight:"Move right",
+ shoot:"Shoot",switch:"Switch soldier",
+ ship:"Board ship",bridge:"Build bridge",
+ house:"Build house",callBot:"Call bot",
+ rifle:"Rifle",sniper:"Sniper",shotgun:"Shotgun",rpg:"RPG"
+ };
+ document.getElementById("keySettings").innerHTML=
+ Object.entries(labels).map(([id,l])=>
+ `<label>${l}<button onclick="assignKey('${id}')">${
+ controls[id]===" "?"SPACE":esc(controls[id].toUpperCase())
+ }</button></label>`).join("");
+}
+
+function assignKey(id){waitingForKey=id;toast("Press a key for "+id)}
+
+function resetControls(){
+ Object.assign(controls,{
+ moveUp:"w",moveDown:"s",moveLeft:"a",moveRight:"d",
+ shoot:" ",switch:"q",ship:"e",bridge:"b",
+ house:"k",callBot:"o",rifle:"1",sniper:"2",
+ shotgun:"3",rpg:"4"
+ });
+ renderKeySettings();
+}
+
+function saveSettings(){
+ sensitivity=Math.max(1,Math.min(10,+document.getElementById("sensitivity").value||5));
+ localStorage.setItem("iiSettings",JSON.stringify({controls,sensitivity}));
+ toast("Settings saved");
+}
+
+try{
+ let st=JSON.parse(localStorage.getItem("iiSettings")||"null");
+ if(st){Object.assign(controls,st.controls||{});sensitivity=st.sensitivity||5}
+}catch(e){}
+
+function changeZoom(a){zoom=Math.max(.7,Math.min(1.8,zoom+a))}
+function resetZoom(){zoom=1}
+
+function makeIsland(id,name,x,y,rx,ry,team){
+ return{id,name,x,y,rx,ry,team,
+ buildings:team==="Neutral"?[]:["Base","House"],
+ houseLevel:1,baseHP:500};
+}
+
+function setupMap(){
+ if(mapChoice==="kingdom")return[
+ makeIsland(0,"Blue Harbor",150,180,105,72,"Blue"),
+ makeIsland(1,"Palm Island",410,100,85,58,"Neutral"),
+ makeIsland(2,"North Point",720,160,105,68,"Red"),
+ makeIsland(3,"Coral Bay",320,420,110,72,"Neutral"),
+ makeIsland(4,"Storm Rock",680,430,100,65,"Yellow"),
+ makeIsland(5,"Moon Key",865,310,65,48,"Purple")
+ ];
+ if(mapChoice==="archipelago")return[
+ makeIsland(0,"Blue Harbor",120,160,75,55,"Blue"),
+ makeIsland(1,"Little Palm",300,90,55,38,"Neutral"),
+ makeIsland(2,"Red Point",820,120,75,55,"Red"),
+ makeIsland(3,"Coral Bay",440,270,65,45,"Neutral"),
+ makeIsland(4,"Yellow Rock",760,470,75,55,"Yellow"),
+ makeIsland(5,"Purple Key",180,470,65,45,"Purple"),
+ makeIsland(6,"Small Key",570,480,50,35,"Neutral"),
+ makeIsland(7,"North Key",570,90,48,34,"Neutral")
+ ];
+ return[
+ makeIsland(0,"Blue Empire",160,290,145,105,"Blue"),
+ makeIsland(1,"Central Island",480,290,85,60,"Neutral"),
+ makeIsland(2,"Red Empire",800,140,120,90,"Red"),
+ makeIsland(3,"Yellow Empire",800,450,120,90,"Yellow"),
+ makeIsland(4,"Purple Key",480,80,65,45,"Purple"),
+ makeIsland(5,"South Key",480,510,65,45,"Neutral")
+ ];
+}
+
+function makeSoldier(team,x,y,name){
+ let hp=team==="Blue"?200:difficultySettings[difficulty].enemyHealth;
+ return{
+ team,name,x,y,hp,max:hp,alive:true,lastShot:0,
+ level:1,transport:null,drownTimer:0,bot:false,
+ aiGoal:null,aiMode:"defend",think:0,face:0,flash:0,
+ ammo:{AR:30,Sniper:8,Shotgun:10,RPG:3}
+ };
+}
+
+function startMatch(){
+ if(!ready)return;
+ difficulty=document.getElementById("difficulty").value;
+ islands=setupMap();soldiers=[];teams=[];bullets=[];ships=[];bridges=[];
+ allies=[];pendingAlliance={};incomingRequests=[];
+ points=100;supplies=120;selected=0;active=0;weapon="AR";
+ gameOver=false;spectating=false;playerDead=false;
+ running=true;fighting=false;lastTime=0;zoom=1;activity=[];nextBotId=1;
+
+ let home=islands.find(i=>i.team==="Blue");
+ for(let n=0;n<3;n++)
+ soldiers.push(makeSoldier("Blue",home.x-12+n*18,home.y+20,"Blue Soldier "+(n+1)));
+
+ for(let name of ["Red","Yellow","Purple"]){
+  let island=islands.find(i=>i.team===name);
+  let t={
+   name,islandId:island.id,supplies:120,
+   buildTimer:0,expandTimer:0,
+   witch:{x:island.x,y:island.y-15,timer:0,produced:0,disabled:false},
+   soldiers:[],requestFromBlue:false
+  };
+  for(let n=0;n<3;n++)
+   t.soldiers.push(makeSoldier(name,island.x+n*16-16,island.y+15,name+" Soldier "+(n+1)));
+  teams.push(t);
+ }
+
+ player=soldiers[0];
+ document.getElementById("overlay").classList.add("hidden");
+ document.getElementById("gameUI").style.display="flex";
+ document.getElementById("fightButton").style.display="block";
+ document.getElementById("fightButton").disabled=false;
+ document.getElementById("fightButton").textContent="START FIGHTING";
+ log("Preparation phase started. "+mapChoice+" · "+difficulty);
+ update();
+}
+
+function startFighting(){
+ if(!running||fighting)return;
+ fighting=true;
+ document.getElementById("fightButton").disabled=true;
+ document.getElementById("fightButton").textContent="BATTLE IN PROGRESS";
+ log("THE BATTLE HAS BEGUN!");
+ toast("Battle started");
+}
+
+function restartMatch(){ready=true;startMatch()}
+
+function returnToMenu(){
+ running=false;gameOver=false;spectating=false;
+ document.getElementById("overlay").classList.remove("hidden");
+ document.getElementById("startMenu").style.display="block";
+ document.getElementById("endMenu").style.display="none";
+ document.getElementById("gameUI").style.display="none";
+ document.getElementById("fightButton").style.display="none";
+ ready=false;
+ document.getElementById("readyButton").textContent="READY UP";
+ document.getElementById("startButton").disabled=true;
+}
+
+function allSoldiers(){return[...soldiers,...teams.flatMap(t=>t.soldiers)]}
+
+function update(){
+ if(!player)return;
+ document.getElementById("owned").textContent=islands.filter(i=>i.team==="Blue").length;
+ document.getElementById("points").textContent=points;
+ document.getElementById("supplies").textContent=Math.floor(supplies);
+ document.getElementById("army").textContent=soldiers.filter(s=>s.alive).length;
+ document.getElementById("health").textContent=player.alive?Math.ceil(player.hp)+" / "+player.max:"SPECTATING";
+ document.getElementById("weapon").textContent=weapon;
+ document.getElementById("phase").textContent=fighting?"BATTLE":"PREPARATION";
+ document.getElementById("ammoInfo").textContent=player.ammo?
+ Object.entries(player.ammo).map(([k,v])=>k+": "+v).join(" · "):"";
+ document.getElementById("witchInfo").textContent=teams.map(t=>
+ t.name+": "+t.witch.produced+" recruits · "+
+ Math.max(0,Math.ceil((difficultySettings[difficulty].recruitTime-t.witch.timer)/1000))+"s"
+ ).join(" | ");
+}
+
+function selectGun(n){weapon=n;update();toast(n+" selected")}
+
+function islandAt(x,y){
+ return islands.find(i=>Math.hypot((x-i.x)/i.rx,(y-i.y)/i.ry)<1);
+}
+
+function distanceToSegment(px,py,x1,y1,x2,y2){
+ let dx=x2-x1,dy=y2-y1;
+ let t=Math.max(0,Math.min(1,((px-x1)*dx+(py-y1)*dy)/(dx*dx+dy*dy||1)));
+ return Math.hypot(px-(x1+t*dx),py-(y1+t*dy));
+}
+
+function onBridge(x,y){
+ return bridges.some(b=>{
+  let a=islands.find(i=>i.id===b.a),z=islands.find(i=>i.id===b.b);
+  return a&&z&&distanceToSegment(x,y,a.x,a.y,z.x,z.y)<16;
+ });
+}
+
+function safeLand(x,y){return!!islandAt(x,y)||onBridge(x,y)}
+
+function isAlly(a,b){return a===b||allies.includes(a)&&allies.includes(b)}
+
+function teamAlive(name){return allSoldiers().some(s=>s.team===name&&s.alive)}
+
+function damageSoldier(s,n){
+ if(!s.alive)return;
+ s.hp-=n;
+ if(s.hp<=0){
+  s.hp=0;s.alive=false;
+  log(s.name+" was defeated.");
+  if(s===player){
+   inShip=false;
+   let next=soldiers.find(x=>x.alive);
+   if(next&&!spectating){
+    player=next;active=soldiers.indexOf(next);
+    toast("Switched to "+next.name);
+   }else{
+    playerDead=true;showDefeat();
+   }
+  }
+  liberateIfEliminated(s.team);
+ }
+}
+
+function liberateIfEliminated(team){
+ if(team==="Blue"||teamAlive(team))return;
+ islands.forEach(i=>{
+  if(i.team===team){i.team="Neutral";i.buildings=[];i.baseHP=500}
+ });
+ let t=teams.find(t=>t.name===team);
+ if(t)t.witch.disabled=true;
+ log(team+" has been eliminated. Its islands are now neutral.");
+}
+
+function nearestEnemyFor(team,x,y,range){
+ let best=null,bd=range;
+ for(let s of allSoldiers()){
+  if(!s.alive||isAlly(team,s.team))continue;
+  let d=Math.hypot(s.x-x,s.y-y);
+  if(d<bd&&!segmentBlocked(x,y,s.x,s.y)){best=s;bd=d}
+ }
+ return best;
+}
+
+function segmentBlocked(x1,y1,x2,y2){
+ return islands.some(i=>
+ i.buildings.includes("Wall")&&
+ distanceToSegment(i.x,i.y+7,x1,y1,x2,y2)<17&&
+ Math.hypot(x1-i.x,y1-i.y)>27&&
+ Math.hypot(x2-i.x,y2-i.y)>27
+ );
+}
+
+function shoot(from,target,team,damage,explosive=false){
+ if(!target||segmentBlocked(from.x,from.y,target.x,target.y))return;
+ let dx=target.x-from.x,dy=target.y-from.y,d=Math.hypot(dx,dy)||1;
+ bullets.push({
+  x:from.x,y:from.y,
+  vx:dx/d*(explosive?5:8),
+  vy:dy/d*(explosive?5:8),
+  team,damage,explosive
+ });
+}
+
+function aimAssist(dx,dy){
+ let best=null,bd=300;
+ for(let s of allSoldiers()){
+  if(!s.alive||isAlly("Blue",s.team))continue;
+  let d=Math.hypot(s.x-player.x,s.y-player.y);
+  if(d<bd&&!segmentBlocked(player.x,player.y,s.x,s.y)){best=s;bd=d}
+ }
+ if(best){
+  let x=best.x-player.x,y=best.y-player.y,d=Math.hypot(x,y)||1;
+  return{x:x/d,y:y/d};
+ }
+ let d=Math.hypot(dx,dy)||1;
+ return{x:dx/d,y:dy/d};
+}
+
+function attack(){
+ if(!running||gameOver||!player?.alive)return;
+ let g=guns[weapon],now=performance.now();
+ if(now-lastShot<g.delay)return;
+ if(player.ammo[weapon]<=0){toast("Out of "+weapon+" ammo. Manufacture more.");return}
+ lastShot=now;player.ammo[weapon]--;
+ let aim=aimAssist(mouse.x-player.x,mouse.y-player.y);
+ aimDirection=aim;
+ for(let n=0;n<g.shots;n++){
+  let a=Math.atan2(aim.y,aim.x)+(n-(g.shots-1)/2)*.12;
+  bullets.push({
+   x:player.x,y:player.y,
+   vx:Math.cos(a)*g.speed,vy:Math.sin(a)*g.speed,
+   team:"Blue",damage:g.damage,explosive:!!g.explosive
+  });
+ }
+ player.flash=7;update();
+}
+
+function manufactureAmmo(){
+ if(!player?.alive)return;
+ let g=guns[weapon],amount=weapon==="AR"?30:weapon==="Sniper"?8:weapon==="Shotgun"?10:3;
+ if(supplies<g.cost){toast("Need "+g.cost+" supplies");return}
+ supplies-=g.cost;player.ammo[weapon]+=amount;
+ log("Manufactured "+amount+" "+weapon+" rounds.");update();
+}
+
+function build(type,cost){
+ if(!running)return;
+ let i=islands.find(x=>x.id===selected);
+ if(!i||i.team!=="Blue"){toast("Select a Blue island");return}
+ if(supplies<cost){toast("Not enough supplies");return}
+ if(i.buildings.includes(type)){toast("Already built");return}
+ supplies-=cost;i.buildings.push(type);
+ if(type==="House")i.houseLevel=1;
+ log(type+" built on "+i.name);update();
+}
+
+function upgradeHouse(){
+ let i=islands.find(x=>x.id===selected);
+ if(!i||i.team!=="Blue"||!i.buildings.includes("House")){
+  toast("Select a Blue island with a house");return;
+ }
+ if(supplies<35){toast("Not enough supplies");return}
+ supplies-=35;i.houseLevel++;
+ log("House upgraded on "+i.name);update();
+}
+
+function applyHouseBonus(s){
+ let i=islandAt(s.x,s.y);
+ return i&&i.buildings.includes("House")?1+(i.houseLevel-1)*.15:1;
+}
+
+function switchSoldier(){
+ let alive=soldiers.map((s,i)=>s.alive?i:-1).filter(i=>i>=0);
+ if(alive.length<2){toast("No other soldier");return}
+ active=alive[(alive.indexOf(active)+1)%alive.length];
+ player=soldiers[active];inShip=false;
+ toast("Switched to "+player.name);update();
+}
+
+function callBot(){
+ if(!running||!player?.alive)return;
+ if(supplies<30){toast("Need 30 supplies");return}
+ supplies-=30;
+ let b=makeSoldier("Blue",player.x+20,player.y+15,"Blue Bot "+nextBotId++);
+ b.bot=true;soldiers.push(b);
+ log("Blue called a new bot.");update();
+}
+
+function upgrade(){
+ if(!player?.alive)return;
+ if(supplies<35){toast("Not enough supplies");return}
+ supplies-=35;player.max+=40;player.hp=player.max;player.level++;update();
+}
+
+function buildShip(){
+ if(supplies<60){toast("Need 60 supplies");return}
+ let h=islands.find(i=>i.id===selected&&i.team==="Blue")||islands.find(i=>i.team==="Blue");
+ if(!h){toast("No Blue island");return}
+ supplies-=60;
+ ships.push({x:h.x+h.rx-5,y:h.y,angle:0,hp:160,max:160,occupant:null});
+ log("Ship built near "+h.name);update();
+}
+
+function findNearestLand(x,y){
+ return islands.slice().sort((a,b)=>
+ Math.hypot(a.x-x,a.y-y)-Math.hypot(b.x-x,b.y-y))[0];
+}
+
+function boardShip(){
+ if(!running||!player?.alive)return;
+ if(!inShip){
+  let s=ships.find(x=>!x.occupant&&Math.hypot(x.x-player.x,x.y-player.y)<75);
+  if(!s){toast("Move close to an empty ship");return}
+  s.occupant=player;player.transport=s;inShip=true;toast("Boarded ship");
+ }else{
+  let s=player.transport;if(!s)return;
+  inShip=false;s.occupant=null;player.transport=null;
+  let p=findNearestLand(s.x,s.y);
+  player.x=p.x;player.y=p.y;toast("Left ship");
+ }
+}
+
+function buildBridgeFor(team,h,t,cost){
+ if(bridges.some(b=>b.a===h.id&&b.b===t.id||b.a===t.id&&b.b===h.id))return false;
+ if(cost&&team==="Blue"&&supplies<cost)return false;
+ if(team==="Blue")supplies-=cost;
+ bridges.push({a:h.id,b:t.id,team});
+ log(team+" built a bridge to "+t.name);return true;
+}
+
+function buildBridge(){
+ let h=islands.find(i=>i.id===selected&&i.team==="Blue");
+ if(!running||!h){toast("Select your island");return}
+ if(supplies<80){toast("Need 80 supplies");return}
+ let t=islands.filter(i=>i.id!==h.id&&
+ !bridges.some(b=>b.a===h.id&&b.b===i.id||b.b===h.id&&b.a===i.id))
+ .sort((a,b)=>Math.hypot(a.x-h.x,a.y-h.y)-Math.hypot(b.x-h.x,b.y-h.y))[0];
+ if(!t){toast("No island available");return}
+ buildBridgeFor("Blue",h,t,80);update();
+}
+
+function requestAlliance(){
+ let opts=teams.filter(t=>!allies.includes(t.name)&&!pendingAlliance[t.name]);
+ if(!opts.length){toast("No teams available");return}
+ let names=opts.map(t=>t.name);
+ let choice=prompt("Choose a team: "+names.join(", "),names[0]);
+ if(!choice)return;
+ choice=names.find(n=>n.toLowerCase()===choice.toLowerCase());
+ if(!choice){toast("Invalid team");return}
+ if(!confirm("Request alliance with "+choice+"?"))return;
+ pendingAlliance[choice]="pending";
+ log("Alliance request sent to "+choice);
+ let accept=Math.random()<({easy:.8,normal:.65,hard:.5}[difficulty]);
+ setTimeout(()=>{
+  if(!running||pendingAlliance[choice]!=="pending")return;
+  pendingAlliance[choice]=accept?"accepted":"rejected";
+  if(accept){allies.push(choice);log(choice+" ACCEPTED the alliance.")}
+  else log(choice+" REJECTED the request.");
+  toast(choice+" "+(accept?"accepted":"rejected"));update();
+ },1400);
+}
+
+function respondAlliance(){
+ let t=teams.find(t=>t.requestFromBlue);
+ if(!t){toast("No incoming alliance requests");return}
+ let ok=confirm(t.name+" requests an alliance. Accept?");
+ t.requestFromBlue=false;
+ if(ok){allies.push(t.name);log("Blue accepted "+t.name+"'s alliance.")}
+ else log("Blue rejected "+t.name+"'s request.");
+ update();
+}
+
+function endAlliance(){
+ if(!allies.length){toast("No active alliances");return}
+ let name=prompt("Which alliance do you want to end? "+allies.join(", "),allies[0]);
+ if(!name)return;
+ let t=allies.find(a=>a.toLowerCase()===name.toLowerCase());
+ if(!t){toast("That team is not allied");return}
+ allies=allies.filter(a=>a!==t);
+ log("Blue ended its alliance with "+t+". Former allies are enemies again.");
+ update();checkVictory();
+}
+
+function offerTrade(){
+ let name=prompt("Trade with which team? "+teamNames.join(", "),"Red");
+ if(!name)return;
+ let t=teams.find(x=>x.name.toLowerCase()===name.toLowerCase());
+ if(!t){toast("Unknown team");return}
+ let give=prompt("You offer: supplies or points?","supplies");
+ if(!give)return;
+ give=give.toLowerCase();
+ if(!["supplies","points"].includes(give)){toast("Choose supplies or points");return}
+ let ga=Math.max(1,Math.floor(+prompt("Amount to offer?","10")));
+ let get=prompt("You want: supplies or points?","points");
+ if(!get)return;
+ get=get.toLowerCase();
+ if(!["supplies","points"].includes(get)||get===give){toast("Choose the other resource");return}
+ let ra=Math.max(1,Math.floor(+prompt("Amount you want?","25")));
+ let have=give==="supplies"?supplies:points;
+ if(have<ga){toast("You don't have enough");return}
+ let fair=(ra/(ga||1))<=(get==="points"?3:2.5);
+ let accept=fair&&Math.random()<.78;
+ if(!confirm("Offer "+ga+" "+give+" for "+ra+" "+get+" to "+t.name+"?"))return;
+ if(accept){
+  if(give==="supplies")supplies-=ga;else points-=ga;
+  if(get==="supplies")supplies+=ra;else points+=ra;
+  log(t.name+" accepted the trade.");toast("Trade accepted");
+ }else{
+  log(t.name+" rejected the trade.");toast("Trade rejected");
+ }
+ update();
+}
+
+function produceSoldier(t){
+ if(t.witch.disabled)return;
+ let h=islands.find(i=>i.team===t.name);
+ if(!h)return;
+ let s=makeSoldier(t.name,h.x+Math.random()*24-12,h.y+25,
+ t.name+" Reinforcement "+(++t.witch.produced));
+ t.soldiers.push(s);log(t.name+" Witch Mother recruited a soldier.");
+}
+
+function captureIsland(s){
+ let i=islandAt(s.x,s.y);
+ if(!i||i.team!=="Neutral")return;
+ i.team=s.team;i.buildings=["Base"];
+ if(s.team==="Blue"){
+  points+=100;supplies+=25;selected=i.id;
+  log(i.name+" captured by Blue!");
+ }else log(i.name+" captured by "+s.team);
+}
+
+function closestNeutral(team){
+ let owned=islands.filter(i=>i.team===team),best=null,bd=Infinity;
+ for(let h of owned)for(let n of islands.filter(i=>i.team==="Neutral")){
+  let d=Math.hypot(n.x-h.x,n.y-h.y);
+  if(d<bd){bd=d;best={h,n,d}}
+ }
+ return best;
+}
+
+function linked(a,b){
+ return bridges.some(v=>v.a===a&&v.b===b||v.a===b&&v.b===a);
+}
+
+function moveToward(s,x,y,speed,dt){
+ let dx=x-s.x,dy=y-s.y,d=Math.hypot(dx,dy)||1;
+ let step=Math.min(speed*dt,d);
+ let nx=s.x+dx/d*step,ny=s.y+dy/d*step;
+ if(safeLand(nx,ny)){s.x=nx;s.y=ny;return true}
+ let targetIsland=islandAt(x,y),from=islandAt(s.x,s.y);
+ if(from&&targetIsland&&linked(from.id,targetIsland.id)){
+  s.x=nx;s.y=ny;return true;
+ }
+ let candidates=bridges.map(b=>({
+  a:islands.find(i=>i.id===b.a),z:islands.find(i=>i.id===b.b)
+ })).filter(v=>v.a&&v.z).sort((a,b)=>
+ distanceToSegment(s.x,s.y,a.a.x,a.a.y,a.z.x,a.z.y)-
+ distanceToSegment(s.x,s.y,b.a.x,b.a.y,b.z.x,b.z.y));
+ let br=candidates[0];
+ if(br&&distanceToSegment(s.x,s.y,br.a.x,br.a.y,br.z.x,br.z.y)<85){
+  s.x=nx;s.y=ny;return true;
+ }
+ return false;
+}
+
+function aiBuild(t,dt){
+ t.supplies+=dt*.5;
+ t.buildTimer+=dt*16.67;
+ t.expandTimer+=dt*16.67;
+ if(t.buildTimer<5000)return;
+ t.buildTimer=0;
+ let owned=islands.filter(i=>i.team===t.name);
+ if(!owned.length)return;
+ let base=owned.slice().sort((a,b)=>a.buildings.length-b.buildings.length)[0];
+ let order=[["House",30],["Barracks",50],["Tower",40],["Wall",20]];
+ let choice=order.find(v=>!base.buildings.includes(v[0])&&t.supplies>=v[1]);
+ if(choice){t.supplies-=choice[1];base.buildings.push(choice[0]);log(t.name+" built "+choice[0]+" on "+base.name)}
+ if(t.expandTimer>8500&&t.supplies>=80){
+  let c=closestNeutral(t.name);
+  if(c&&!linked(c.h.id,c.n.id)){
+   t.supplies-=80;bridges.push({a:c.h.id,b:c.n.id,team:t.name});
+   t.expandTimer=0;log(t.name+" built a bridge toward "+c.n.name);
+  }
+ }
+}
+
+function aiThink(t,now,dt){
+ aiBuild(t,dt);
+ t.witch.timer+=dt*16.67;
+ if(t.witch.timer>=difficultySettings[difficulty].recruitTime){
+  t.witch.timer=0;
+  if(t.soldiers.filter(s=>s.alive).length<12)produceSoldier(t);
+ }
+ if(!t.requestFromBlue&&!allies.includes(t.name)&&Math.random()<.000035){
+  t.requestFromBlue=true;log(t.name+" sent an alliance request to Blue.");
+ }
+ for(let s of t.soldiers){
+  if(!s.alive)continue;
+  let target=nearestEnemyFor(t.name,s.x,s.y,340);
+  if(fighting&&target){
+   let d=Math.hypot(target.x-s.x,target.y-s.y);
+   if(d>100)moveToward(s,target.x,target.y,difficultySettings[difficulty].enemySpeed,dt);
+   if(now-s.lastShot>1000){
+    s.lastShot=now;
+    shoot(s,target,t.name,difficultySettings[difficulty].enemyDamage*applyHouseBonus(s));
+   }
+   continue;
+  }
+  let c=closestNeutral(t.name);
+  if(c){
+   if(!linked(c.h.id,c.n.id)){
+    if(t.supplies>=80&&t.expandTimer>8000){
+     t.supplies-=80;bridges.push({a:c.h.id,b:c.n.id,team:t.name});t.expandTimer=0;
+    }
+   }else{
+    moveToward(s,c.n.x,c.n.y,difficultySettings[difficulty].enemySpeed,dt);
+    if(Math.hypot(s.x-c.n.x,s.y-c.n.y)<Math.min(c.n.rx,c.n.ry)*.65)captureIsland(s);
+   }
+  }else{
+   let home=islands.find(i=>i.team===t.name);
+   if(home&&Math.hypot(s.x-home.x,s.y-home.y)>45)moveToward(s,home.x,home.y,.35,dt);
+  }
+ }
+}
+
+function friendlyThink(now,dt){
+ if(!fighting)return;
+ for(let s of soldiers){
+  if(!s.alive||s===player)continue;
+  let target=nearestEnemyFor("Blue",s.x,s.y,330);
+  if(target){
+   let d=Math.hypot(target.x-s.x,target.y-s.y);
+   if(d>105)moveToward(s,target.x,target.y,.55,dt);
+   if(now-s.lastShot>950){
+    s.lastShot=now;shoot(s,target,"Blue",13*applyHouseBonus(s));
+   }
+  }else{
+   let home=islandAt(s.x,s.y)||islands.find(i=>i.team==="Blue");
+   let threatened=nearestEnemyFor("Blue",home.x,home.y,220);
+   if(threatened)moveToward(s,home.x,home.y,.4,dt);
+   else{
+    let neutral=closestNeutral("Blue");
+    if(neutral&&linked(neutral.h.id,neutral.n.id))
+     moveToward(s,neutral.n.x,neutral.n.y,.38,dt);
+   }
+  }
+ }
+}
+
+function drownCheck(s,dt){
+ if(!s.alive||s.transport)return;
+ if(safeLand(s.x,s.y)){s.drownTimer=0;return}
+ s.drownTimer+=dt*16.67;
+ if(s.drownTimer>1200){
+  let home=findNearestLand(s.x,s.y);
+  s.x=home.x;s.y=home.y+15;s.drownTimer=0;
+  damageSoldier(s,8);
+ }
+}
+
+function movePlayer(dt){
+ if(!player?.alive||spectating)return;
+ let dx=(keys[controls.moveRight]?1:0)-(keys[controls.moveLeft]?1:0)+mobileMove.x;
+ let dy=(keys[controls.moveDown]?1:0)-(keys[controls.moveUp]?1:0)+mobileMove.y;
+ let pad=navigator.getGamepads?.()[0];
+ if(pad){
+  if(Math.abs(pad.axes[0]||0)>.15)dx=pad.axes[0];
+  if(Math.abs(pad.axes[1]||0)>.15)dy=pad.axes[1];
+  if(Math.abs(pad.axes[2]||0)>.18||Math.abs(pad.axes[3]||0)>.18){
+   aimDirection={x:pad.axes[2],y:pad.axes[3]};
+   mouse.x=player.x+aimDirection.x*300;
+   mouse.y=player.y+aimDirection.y*300;
+  }
+ }
+ let len=Math.hypot(dx,dy)||1;
+ dx/=len;dy/=len;
+ if(inShip&&player.transport){
+  let sh=player.transport;
+  sh.angle=Math.atan2(dy,dx);
+  sh.x=Math.max(8,Math.min(W-8,sh.x+dx*2.3*dt));
+  sh.y=Math.max(8,Math.min(H-8,sh.y+dy*2.3*dt));
+  player.x=sh.x;player.y=sh.y;return;
+ }
+ let speed=1.8*dt,nx=player.x+dx*speed,ny=player.y+dy*speed;
+ if(safeLand(nx,ny)){player.x=nx;player.y=ny;player.face=Math.atan2(dy,dx)}
+ else if(islandAt(player.x,player.y)){
+  let xok=safeLand(nx,player.y),yok=safeLand(player.x,ny);
+  if(xok)player.x=nx;
+  if(yok)player.y=ny;
+  player.face=Math.atan2(dy,dx);
+ }
+}
+
+function damageIslandAt(x,y,damage){
+ let i=islandAt(x,y);
+ if(i)i.baseHP=Math.max(0,i.baseHP-damage*.7);
+}
+
+function processBullets(dt){
+ bullets=bullets.filter(b=>{
+  let ox=b.x,oy=b.y;
+  b.x+=b.vx*dt;b.y+=b.vy*dt;
+  if(segmentBlocked(ox,oy,b.x,b.y))return false;
+  let hit=allSoldiers().find(s=>
+   s.alive&&!isAlly(s.team,b.team)&&
+   distanceToSegment(s.x,s.y,ox,oy,b.x,b.y)<13
+  );
+  if(hit){
+   damageSoldier(hit,b.damage);
+   if(b.explosive){
+    for(let s of allSoldiers())
+     if(s.alive&&s!==hit&&!isAlly(s.team,b.team)&&Math.hypot(s.x-b.x,s.y-b.y)<55)
+      damageSoldier(s,b.damage*.4);
+    damageIslandAt(b.x,b.y,b.damage);
+   }
+   return false;
+  }
+  if(b.explosive)damageIslandAt(b.x,b.y,b.damage);
+  return b.x>0&&b.x<W&&b.y>0&&b.y<H;
+ });
+}
+
+function updateShips(){
+ for(let sh of ships){
+  for(let b of bullets){
+   if(b.team!=="Blue"&&Math.hypot(sh.x-b.x,sh.y-b.y)<20){
+    sh.hp-=b.damage;b.x=-100;
+   }
+  }
+  if(sh.hp<=0&&sh.occupant){
+   let p=sh.occupant;p.transport=null;sh.occupant=null;
+   if(p===player)inShip=false;
+   damageSoldier(p,100);log("A ship sank.");
+  }
+ }
+ ships=ships.filter(s=>s.hp>0);
+}
+
+function checkVictory(){
+ let living=teamNames.filter(teamAlive);
+ let blue=teamAlive("Blue");
+ if(!blue&&!playerDead){playerDead=true;showDefeat()}
+ if(!blue&&playerDead)return;
+ let hostile=living.filter(n=>!isAlly(n,"Blue"));
+ if(hostile.length===0){
+  finish(true,allies.length?"ALLIANCE VICTORY!":"BLUE TEAM WINS!");
+  return;
+ }
+ if(!blue&&living.length){
+  let winner=living[0];
+  if(living.every(n=>isAlly(n,winner)))
+   finish(false,winner.toUpperCase()+" TEAM WINS!");
+ }
+}
+
+function showDefeat(){
+ if(gameOver)return;
+ gameOver=true;running=false;
+ document.getElementById("overlay").classList.remove("hidden");
+ document.getElementById("startMenu").style.display="none";
+ document.getElementById("endMenu").style.display="block";
+ document.getElementById("result").textContent="BLUE TEAM DEFEATED";
+ document.getElementById("resultText").textContent="All Blue soldiers have been eliminated.";
+ document.getElementById("spectateButton").style.display="inline-block";
+ document.getElementById("fightButton").style.display="none";
+}
+
+function continueSpectating(){
+ spectating=true;gameOver=false;running=true;
+ document.getElementById("overlay").classList.add("hidden");
+ document.getElementById("endMenu").style.display="none";
+ document.getElementById("spectateButton").style.display="none";
+ log("You are spectating. The battle continues.");
+}
+
+function finish(win,title){
+ if(gameOver)return;
+ gameOver=true;running=false;
+ document.getElementById("overlay").classList.remove("hidden");
+ document.getElementById("startMenu").style.display="none";
+ document.getElementById("endMenu").style.display="block";
+ document.getElementById("result").textContent=title||(win?"BLUE TEAM WINS!":"GAME OVER");
+ document.getElementById("resultText").textContent=win?"The opposing teams have been defeated.":"The battle has ended.";
+ document.getElementById("spectateButton").style.display="none";
+ document.getElementById("fightButton").style.display="none";
+}
+
+function drawSoldier(s){
+ let angle=s.face||0;
+ if(s===player)angle=Math.atan2(aimDirection.y,aimDirection.x);
+ ctx.save();
+ ctx.translate(s.x,s.y);ctx.rotate(angle);
+ let c=colors[s.team]||"#ddd";
+ ctx.strokeStyle="#17232a";ctx.lineWidth=4;ctx.lineCap="round";
+ ctx.beginPath();
+ ctx.moveTo(-4,-3);ctx.lineTo(-8,-10);
+ ctx.moveTo(-4,4);ctx.lineTo(-8,11);
+ ctx.stroke();
+ ctx.strokeStyle=c;ctx.lineWidth=4;
+ ctx.beginPath();
+ ctx.moveTo(2,-4);ctx.lineTo(8,-9);
+ ctx.moveTo(2,4);ctx.lineTo(8,9);
+ ctx.stroke();
+ ctx.fillStyle=c;ctx.strokeStyle="#18232a";ctx.lineWidth=1.5;
+ ctx.beginPath();ctx.roundRect(-7,-7,15,14,4);ctx.fill();ctx.stroke();
+ ctx.fillStyle="#d6b08b";ctx.beginPath();ctx.arc(8,0,5,0,Math.PI*2);ctx.fill();
+ ctx.fillStyle="#33404a";ctx.beginPath();ctx.arc(8,-1,5,Math.PI,Math.PI*2);ctx.fill();
+ ctx.fillStyle="#b8c8d0";ctx.fillRect(7,-2,15,3);
+ ctx.fillStyle="#29343b";ctx.fillRect(18,-3,7,2);
+ if(s.flash>0){
+  ctx.fillStyle="#ffe9a0";ctx.beginPath();
+  ctx.moveTo(25,0);ctx.lineTo(34,-5);ctx.lineTo(31,0);
+  ctx.lineTo(34,5);ctx.closePath();ctx.fill();s.flash--;
+ }
+ ctx.restore();
+ ctx.fillStyle="#8ce09a";
+ ctx.fillRect(s.x-12,s.y-19,24*Math.max(0,s.hp/s.max),4);
+ if(s===player){
+  ctx.strokeStyle="white";ctx.lineWidth=2;
+  ctx.beginPath();ctx.arc(s.x,s.y,17,0,Math.PI*2);ctx.stroke();
+  ctx.fillStyle="white";ctx.font="bold 10px Arial";ctx.textAlign="center";
+  ctx.fillText(spectating?"SPECTATING":"YOU",s.x,s.y-26);
+ }
+}
+
+function draw(){
+ ctx.clearRect(0,0,W,H);
+ ctx.fillStyle="#1c5260";ctx.fillRect(0,0,W,H);
+ ctx.save();ctx.translate(W/2,H/2);ctx.scale(zoom,zoom);ctx.translate(-W/2,-H/2);
+
+ bridges.forEach(b=>{
+  let a=islands.find(i=>i.id===b.a),z=islands.find(i=>i.id===b.b);
+  if(!a||!z)return;
+  ctx.strokeStyle="#8d6948";ctx.lineWidth=24;
+  ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(z.x,z.y);ctx.stroke();
+  ctx.strokeStyle=colors[b.team]||"#dfc18e";ctx.lineWidth=4;ctx.stroke();
+ });
+
+ islands.forEach(i=>{
+  ctx.beginPath();ctx.ellipse(i.x,i.y,i.rx,i.ry,0,0,Math.PI*2);
+  ctx.fillStyle="#6f9b63";ctx.fill();
+  ctx.strokeStyle=colors[i.team];ctx.lineWidth=5;ctx.stroke();
+  ctx.fillStyle="white";ctx.font="bold 14px Arial";ctx.textAlign="center";
+  ctx.fillText(i.name,i.x,i.y-i.ry-12);
+  i.buildings.forEach((b,n)=>{
+   ctx.fillStyle=b==="House"?"#d4b47a":
+    b==="Base"?"#bd6256":
+    b==="Tower"?"#b8c8d0":
+    b==="Wall"?"#d4e1e5":"#a9c3ca";
+   if(b==="Wall")ctx.fillRect(i.x-34,i.y+2,68,10);
+   else ctx.fillRect(i.x-24+n*15,i.y+10,12,12);
+  });
+  if(i.buildings.includes("House")){
+   ctx.fillStyle="#fff2b2";ctx.font="10px Arial";
+   ctx.fillText("LV "+i.houseLevel,i.x,i.y+i.ry-5);
+  }
+ });
+
+ teams.forEach(t=>{
+  if(t.witch.disabled)return;
+  ctx.fillStyle=colors[t.name];ctx.beginPath();
+  ctx.arc(t.witch.x,t.witch.y,13,0,Math.PI*2);ctx.fill();
+  ctx.strokeStyle="#fff3a0";ctx.lineWidth=2;ctx.beginPath();
+  ctx.arc(t.witch.x,t.witch.y,18+Math.sin(performance.now()/200)*2,0,Math.PI*2);ctx.stroke();
+  ctx.fillStyle="white";ctx.font="bold 9px Arial";
+  ctx.fillText("WITCH",t.witch.x,t.witch.y-19);
+ });
+
+ ships.forEach(s=>{
+  ctx.save();ctx.translate(s.x,s.y);ctx.rotate(s.angle);
+  ctx.fillStyle="#8b5b35";ctx.beginPath();
+  ctx.moveTo(22,0);ctx.lineTo(-17,-12);ctx.lineTo(-22,0);
+  ctx.lineTo(-17,12);ctx.closePath();ctx.fill();ctx.restore();
+ });
+
+ bullets.forEach(b=>{
+  ctx.fillStyle=b.team==="Blue"?"#bde9ff":colors[b.team]||"#ffd0b7";
+  ctx.beginPath();ctx.arc(b.x,b.y,b.explosive?6:3,0,Math.PI*2);ctx.fill();
+ });
+
+ allSoldiers().forEach(s=>{if(s.alive)drawSoldier(s)});
+ ctx.restore();
+}
+
+function serializableState(){
+ let list=allSoldiers();
+ return{
+  version:"0.9",mapChoice,difficulty,fighting,points,supplies,
+  selected,active,weapon,allies,pendingAlliance,zoom,nextBotId,
+  islands,
+  soldiers:soldiers.map(s=>({...s,transport:null})),
+  teams:teams.map(t=>({...t,soldiers:t.soldiers.map(s=>({...s,transport:null}))})),
+  bridges,bullets,
+  ships:ships.map(s=>({...s,occupantIndex:s.occupant?list.indexOf(s.occupant):-1,occupant:null})),
+  playerIndex:list.indexOf(player),activity,spectating
+ };
+}
+
+function saveGame(){
+ if(!running&&!gameOver){toast("Start a match before saving");return}
+ try{
+  localStorage.setItem(SAVE_KEY,JSON.stringify(serializableState()));
+  log("Game saved on this device.");toast("Game saved!");
+ }catch(e){toast("Save failed: storage full")}
+}
+
+function loadGame(){
+ let raw=localStorage.getItem(SAVE_KEY);
+ if(!raw){toast("No saved game found");return}
+ if(running&&!confirm("Load saved game? Current progress will be replaced."))return;
+ try{
+  let d=JSON.parse(raw);
+  if(d.version!=="0.9"||!Array.isArray(d.islands))throw Error("Invalid save");
+  ({mapChoice,difficulty,fighting,points,supplies,selected,active,weapon,allies,pendingAlliance,zoom,nextBotId,islands,soldiers,teams,bridges,bullets,activity}=d);
+  ships=(d.ships||[]).map(s=>({...s,occupant:null}));
+  let list=allSoldiers();
+  (d.ships||[]).forEach((s,i)=>{
+   let p=list[s.occupantIndex];
+   if(p){ships[i].occupant=p;p.transport=ships[i]}
+  });
+  player=list[d.playerIndex]||soldiers.find(s=>s.alive);
+  inShip=!!player?.transport;spectating=!!d.spectating;
+  gameOver=false;playerDead=!soldiers.some(s=>s.alive);running=true;ready=true;
+  document.getElementById("difficulty").value=difficulty;
+  document.getElementById("overlay").classList.add("hidden");
+  document.getElementById("startMenu").style.display="block";
+  document.getElementById("endMenu").style.display="none";
+  document.getElementById("gameUI").style.display="flex";
+  document.getElementById("fightButton").style.display="block";
+  document.getElementById("fightButton").disabled=fighting;
+  document.getElementById("fightButton").textContent=fighting?"BATTLE IN PROGRESS":"START FIGHTING";
+  log("Saved game loaded.");update();toast("Save loaded!");
+ }catch(e){console.error(e);toast("Could not load save")}
+}
+
+function step(now){
+ if(!lastTime)lastTime=now;
+ let dt=Math.min((now-lastTime)/16.67,1.5);
+ lastTime=now;
+ if(running&&!gameOver){
+  if(!spectating)movePlayer(dt);
+  if(player?.alive&&!spectating)captureIsland(player);
+  friendlyThink(now,dt);
+  teams.forEach(t=>aiThink(t,now,dt));
+  allSoldiers().forEach(s=>drownCheck(s,dt));
+  processBullets(dt);updateShips();checkVictory();update();
+ }
+ draw();
+ requestAnimationFrame(step);
+}
+
+window.addEventListener("keydown",e=>{
+ if(waitingForKey){
+  e.preventDefault();
+  controls[waitingForKey]=e.key===" "?" ":e.key.toLowerCase();
+  waitingForKey=null;renderKeySettings();return;
+ }
+ let k=e.key.toLowerCase();keys[k]=true;
+ if(!running||spectating)return;
+ if(k===controls.shoot){e.preventDefault();attack()}
+ if(k===controls.switch)switchSoldier();
+ if(k===controls.ship)boardShip();
+ if(k===controls.bridge)buildBridge();
+ if(k===controls.house)build("House",30);
+ if(k===controls.callBot)callBot();
+ if(k===controls.rifle)selectGun("AR");
+ if(k===controls.sniper)selectGun("Sniper");
+ if(k===controls.shotgun)selectGun("Shotgun");
+ if(k===controls.rpg)selectGun("RPG");
+});
+
+window.addEventListener("keyup",e=>keys[e.key.toLowerCase()]=false);
+
+canvas.addEventListener("mousemove",e=>{
+ let r=canvas.getBoundingClientRect();
+ let sx=(e.clientX-r.left)*W/r.width;
+ let sy=(e.clientY-r.top)*H/r.height;
+ mouse.x=(sx-W/2)/zoom+W/2;
+ mouse.y=(sy-H/2)/zoom+H/2;
+});
+
+canvas.addEventListener("click",e=>{
+ if(!running)return;
+ let r=canvas.getBoundingClientRect();
+ let sx=(e.clientX-r.left)*W/r.width;
+ let sy=(e.clientY-r.top)*H/r.height;
+ let x=(sx-W/2)/zoom+W/2;
+ let y=(sy-H/2)/zoom+H/2;
+ let i=islands.find(i=>Math.hypot((x-i.x)/i.rx,(y-i.y)/i.ry)<1.2);
+ if(i){selected=i.id;toast(i.name+" selected")}
+});
+
+function controllerLoop(){
+ let p=navigator.getGamepads?.()[0];
+ if(p&&running&&!gameOver&&!spectating){
+  let d=.17,x=Math.abs(p.axes[0]||0)>d?p.axes[0]:0;
+  let y=Math.abs(p.axes[1]||0)>d?p.axes[1]:0;
+  keys[controls.moveRight]=x>.2;
+  keys[controls.moveLeft]=x<-.2;
+  keys[controls.moveDown]=y>.2;
+  keys[controls.moveUp]=y<-.2;
+  let rx=p.axes[2]||0,ry=p.axes[3]||0;
+  if(Math.abs(rx)>d||Math.abs(ry)>d){
+   aimDirection={x:rx,y:ry};
+   mouse.x=player.x+rx*300;mouse.y=player.y+ry*300;
+  }
+  let pressed=n=>!!p.buttons[n]?.pressed;
+  if(pressed(7)&&!controllerButtons.shoot)attack();
+  if(pressed(3)&&!controllerButtons.house)build("House",30);
+  if(pressed(4)&&!controllerButtons.switch)switchSoldier();
+  if(pressed(0)&&!controllerButtons.ship)boardShip();
+  if(pressed(1)&&!controllerButtons.call)callBot();
+  controllerButtons={
+   shoot:pressed(7),house:pressed(3),
+   switch:pressed(4),ship:pressed(0),call:pressed(1)
+  };
+ }
+ requestAnimationFrame(controllerLoop);
+}
+
+const stick=document.getElementById("stick");
+const knob=document.getElementById("stickKnob");
+let stickActive=false;
+
+function updateStick(e){
+ let r=stick.getBoundingClientRect();
+ let dx=e.clientX-(r.left+r.width/2);
+ let dy=e.clientY-(r.top+r.height/2);
+ let max=34,len=Math.hypot(dx,dy)||1;
+ if(len>max){dx=dx/len*max;dy=dy/len*max}
+ mobileMove={x:dx/max,y:dy/max};
+ knob.style.left=(33+dx)+"px";
+ knob.style.top=(33+dy)+"px";
+}
+
+stick.addEventListener("pointerdown",e=>{
+ stickActive=true;stick.setPointerCapture(e.pointerId);updateStick(e);
+});
+stick.addEventListener("pointermove",e=>{
+ if(stickActive)updateStick(e);
+});
+
+function releaseStick(){
+ stickActive=false;mobileMove={x:0,y:0};
+ knob.style.left="33px";knob.style.top="33px";
+}
+
+stick.addEventListener("pointerup",releaseStick);
+stick.addEventListener("pointercancel",releaseStick);
+
+renderKeySettings();
+document.getElementById("sensitivity").value=sensitivity;
+requestAnimationFrame(step);
+requestAnimationFrame(controllerLoop);
+</script>
+</body>
+</html>
